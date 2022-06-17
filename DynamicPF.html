@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Parameter-free Mirror Descent</title>
+<meta name="author" content="Andrew Jacobsen, Ashok Cutkosky"/>
+<style type="text/css">
+.underline { text-decoration: underline; }
+</style>
+<link rel="stylesheet" href="file:////home/andrew/reveal.js/dist/reveal.css"/>
+
+<link rel="stylesheet" href="file:////home/andrew/reveal.js/dist/theme/night.css" id="theme"/>
+
+<link rel="stylesheet" href="./presentation.css"/>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+<section id="sec-title-slide">
+<h1 class="title">Parameter-free Mirror Descent</h1><h2 class="author">Andrew Jacobsen, Ashok Cutkosky</h2><p class="date">Created: 2022-06-17 Fri 11:10</p>
+</section>
+<p>
+\(
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\F}{\mathbb{F}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\N}{\mathbb{N}}
+%
+\newcommand{\cA}{\mathcal{A}}
+\newcommand{\cB}{\mathcal{B}}
+\newcommand{\cD}{\mathcal{D}}
+\newcommand{\cK}{\mathcal{K}}
+\newcommand{\cF}{\mathcal{F}}
+\newcommand{\cX}{\mathcal{X}}
+\newcommand{\cO}{\mathcal{O}}
+\newcommand{\cC}{\mathcal{C}}
+\newcommand{\cS}{\mathcal{S}}
+\newcommand{\cY}{\mathcal{Y}}
+\newcommand{\cH}{\mathcal{H}}
+\newcommand{\cL}{\mathcal{L}}
+%
+\newcommand{\brac}[1]{\left(#1\right)}
+\newcommand{\set}[1]{\left\{#1\right\}}
+\newcommand{\half}{\frac{1}{2}}
+\newcommand{\abs}[1]{|#1|}
+\newcommand{\argmin}{\operatorname{arg\,min}}
+\newcommand{\argmax}{\operatorname{arg\,max}}
+\newcommand{\norm}[1]{\|#1\|}
+\newcommand{\Bignorm}[1]{\Big\|#1\Big\|}
+\newcommand{\grad}{\nabla}
+\newcommand{\inner}[1]{\langle #1 \rangle}
+\newcommand{\conj}[1]{\overline{#1}}
+\newcommand{\Log}[1]{\log\left(#1\right)}
+\newcommand{\Exp}[1]{\exp\left(#1\right)}
+\newcommand{\Det}[1]{\text{Det}\left(#1\right)}
+\newcommand{\Tr}[1]{\text{Tr}\left(#1\right)}
+\newcommand{\Diag}[1]{\text{diag}\left(#1\right)}
+\newcommand{\inv}{{-1}}
+\newcommand{\risk}{\text{Risk}}
+\newcommand{\defeq}{\overset{\text{def}}{=}}
+\DeclareMathOperator*{\proj}{\Pi}
+%
+\newcommand{\E}{\mathbb E}
+\newcommand{\V}{\mathbb V}
+\newcommand{\EE}[1]{\E\left[ #1 \right]}
+\newcommand{\EEp}[2]{\E_#1\left[ #2 \right]}
+\newcommand{\VV}[1]{\V[#1]}
+\newcommand{\Prob}[1]{\mathbb{P}\left(#1\right)}
+%
+\newcommand{\separator}{\bigskip\hrule\bigskip}
+%
+\newcommand{\eps}{\varepsilon}
+\DeclareMathOperator*{\1}{\mathbbm{1}}
+%
+\newcommand{\gvec}{\mathbf{g}}
+\newcommand{\hvec}{\mathbf{h}}
+\newcommand{\mvec}{\mathbf{m}}
+\newcommand{\qvec}{\mathbf{q}}
+\newcommand{\uvec}{\mathbf{u}}
+\newcommand{\vvec}{\mathbf{v}}
+\newcommand{\wvec}{\mathbf{w}}
+\newcommand{\xvec}{\mathbf{x}}
+\newcommand{\yvec}{\mathbf{y}}
+\newcommand{\zvec}{\mathbf{z}}
+\newcommand{\zeros}{\mathbf{0}}
+\newcommand{\ones}{\mathbf{1}}
+\newcommand{\Color}[2]{{\color{#1}{#2}}}
+\newcommand{\sumtT}{\sum_{t=1}^T}
+\newcommand{\cmp}{u}
+\newcommand{\tmm}{{t-1}}
+\newcommand{\tpp}{{t+1}}
+\)
+</p>
+\(
+\newcommand{\orange}[1]{\Color{orange}{#1}}
+\newcommand{\skyblue}[1]{\Color{skyblue}{#1}}
+\newcommand{\salmon}[1]{\Color{salmon}{#1}}
+\newcommand{\plum}[1]{\Color{plum}{#1}}
+\newcommand{\green}[1]{\Color{lightgreen}{#1}}
+\newcommand{\wtpp}{w_\tpp}
+\newcommand{\wt}{w_t}
+\)
+
+<section>
+<section id="slide-orgc93b7fd">
+<h2 id="orgc93b7fd">Online Learning</h2>
+<ul>
+<li class="fragment appear">&ldquo;Learning from a stream of data&rdquo;</li>
+<li class="fragment appear">Learning problem formalized as a game:
+<ul>
+<li class="fragment appear">on each round \(t\in[1,T]\)
+<ul>
+<li class="fragment appear">learner chooses a \(\color{salmon}{w_t\in W}\)</li>
+<li class="fragment appear">adversary reveals a convex <i>loss function</i> \(\color{skyblue}{\ell_t(\cdot)}\)</li>
+<li class="fragment appear">learner incurs a loss of \(\color{skyblue}{\ell_t(}\color{salmon}{w_t}\color{skyblue}{)}\)</li>
+
+</ul></li>
+
+</ul></li>
+<li class="fragment appear"><p>
+<b>(Static) Regret</b>: compare \(\color{salmon}{\text{your total loss}}\) to that of \(\color{skyblue}{\text{any fixed decision }\cmp}\)
+</p>
+<div>
+  \begin{align*}
+  R_T(\cmp) = \color{salmon}{\sum_{t=1}^T \ell_t(w_t)} - \color{skyblue}{\sum_{t=1}^T\ell_t(\cmp)}
+\end{align*}
+
+</div>
+<ul>
+<li class="fragment appear"><i>e.g.</i> in a bounded domain, usually care about \(\cmp=\argmin_x\sumtT\ell_t(x)\)</li>
+
+</ul></li>
+
+</ul>
+
+</section>
+</section>
+<section>
+<section id="slide-org6521315">
+<h2 id="org6521315">Parameter-free Learning</h2>
+<ul>
+<li class="fragment appear">Gradient Descent: \(\wtpp = \wt-\eta\skyblue{\grad\ell_t(w_t)}\)
+<ul>
+<li class="fragment appear"><p>
+Setting step-size \(\eta=\frac{\orange{\norm{u}}}{\sqrt{\skyblue{\sumtT\norm{\grad\ell_t(w_t)}^2}}}\) guarantees optimal regret:
+</p>
+<div>
+\begin{align*}
+  R_T(\orange{\cmp})\le\orange{\norm{\cmp}}\sqrt{\skyblue{\sumtT\norm{\grad\ell_t(w_t)}^2}}
+\end{align*}
+
+</div></li>
+<li class="fragment appear">Impossible to match without prior knowledge of \(\orange{\cmp}\)</li>
+<li class="fragment appear"><p>
+An algorithm is \(\plum{\textit{``parameter-free''}}\) if can match this bound \(\plum{\textit
+    {up to log terms}}\)
+</p>
+<div>
+\begin{align*}
+  R_T(\orange{\cmp})\le O\brac{\orange{\norm{\cmp}}\sqrt{\skyblue{\sumtT\norm{\grad\ell_t(w_t)}^2}\plum{\log(\norm{u}T+1)}}}
+\end{align*}
+
+</div>
+<ul>
+<li class="fragment appear"><i>ex.</i> coin-betting, FTRL, potential-based methods
+<ul>
+<li class="fragment appear"><i>&ldquo;approximate&rdquo;</i> the best-in-hindsight decision</li>
+
+</ul></li>
+
+</ul></li>
+
+</ul></li>
+
+</ul>
+
+</section>
+</section>
+<section>
+<section id="slide-orgc5f8a58">
+<h2 id="orgc5f8a58">\(A \Color{orange}{\textrm{ Fixed Comparator}}\) Isn&rsquo;t Always Appropriate</h2>
+<ul>
+<li class="fragment appear"><p>
+<b>Illustrative Example:</b> Predict next observation \(\Color{royalblue}{y_t\sim\mathcal{N}(\mu_t,\sigma^2)}\)
+</p>
+<img src="windowed_online_rw_baseline1.gif", width=1200, height=700,align=right></li>
+<li class="fragment appear">\(\ell_t(x)=\half(y_t-x)^2\)</li>
+
+</ul>
+
+</section>
+</section>
+<section>
+<section id="slide-org8b1a8f6">
+<h2 id="org8b1a8f6">\(A \Color{orange}{\textrm{ Fixed Comparator}}\) Isn&rsquo;t Always Appropriate</h2>
+<ul>
+<li><p>
+<b>Illustrative Example:</b> Predict next observation \(\Color{royalblue}{y_t\sim\mathcal{N}(\mu_t,\sigma^2)}\)
+</p>
+<img src="windowed_online_rw_baseline2.gif", width=1200, height=700,align=right></li>
+<li>\(\ell_t(x)=\half(y_t-x)^2\)</li>
+
+</ul>
+
+</section>
+</section>
+<section>
+<section id="slide-orge967861">
+<h2 id="orge967861">Dynamic Regret</h2>
+<ul>
+<li><p>
+<b>Dynamic Regret</b>: compare your total loss to the total loss of any other \(\color{orange}{\text{sequence}}\)
+</p>
+<div>
+\begin{align*}
+R_T(\Color{orange}{\cmp_1,\ldots,\cmp_T}) = \sum_{t=1}^T\ell_t(w_t)-\sum_{t=1}^T\ell_t(\color{orange}{\cmp_t})
+\end{align*}
+
+</div></li>
+
+</ul>
+<img src="blank.svg", width=800, height=466,align=right>
+<img src="blank.svg", width=800, height=466,align=right>
+
+<img src="blank.svg", width=800, height=500,align=right>
+</section>
+</section>
+<section>
+<section id="slide-org763f391">
+<h2 id="org763f391">Dynamic Regret</h2>
+<ul>
+<li><p>
+<b>Dynamic Regret</b>: compare your total loss to the total loss of any other \(\color{orange}{\text{sequence}}\)
+</p>
+<div>
+\begin{align*}
+R_T(\Color{orange}{\cmp_1,\ldots,\cmp_T}) = \sum_{t=1}^T\ell_t(w_t)-\sum_{t=1}^T\ell_t(\color{orange}{\cmp_t})
+\end{align*}
+
+</div></li>
+
+</ul>
+<img src="windowed_online_rw_baseline4.gif", width=800, height=466,align=right>
+<img src="blank.svg", width=800, height=466,align=right>
+
+<img src="blank.svg", width=800, height=500,align=right>
+
+</section>
+</section>
+<section>
+<section id="slide-org49fb1bc">
+<h2 id="org49fb1bc">Dynamic Regret</h2>
+<ul>
+<li><p>
+<b>Dynamic Regret</b>: compare your total loss to the total loss of any other \(\color{orange}{\text{sequence}}\)
+</p>
+<div>
+\begin{align*}
+R_T(\Color{orange}{\cmp_1,\ldots,\cmp_T}) = \sum_{t=1}^T\ell_t(w_t)-\sum_{t=1}^T\ell_t(\color{orange}{\cmp_t})
+\end{align*}
+
+</div></li>
+
+</ul>
+<img src="windowed_online_rw_baseline4.gif", width=800, height=466,align=right>
+<img src="windowed_online_rw_baseline3.gif", width=800, height=466,align=right>
+<ul>
+<li class="fragment appear"><p>
+<i>complexity</i> of the sequence quantified by \(\Color{orange}{\textbf{Path Length}}\)
+</p>
+<div>
+\begin{align*}
+\Color{orange}{P_T} = \sum_{t=2}^T\norm{\color{orange}{\cmp_t-\cmp_\tmm}}
+\end{align*}
+
+</div></li>
+
+</ul>
+
+</section>
+</section>
+<section>
+<section id="slide-orgd59bf58">
+<h2 id="orgd59bf58">Dynamic Regret (Continued)</h2>
+<ul>
+<li class="fragment appear"><p>
+In <b>Bounded domains</b> with \(\max_{x\in\cX}\norm{x}= D\), Gradient descent with a fixed step-size \(\eta\) guarantees
+</p>
+
+<p>
+\(
+    \qquad\qquad R_T^{\eta}(\orange{\cmp_1,\ldots,\cmp_T})\le O\brac{\frac{\Color{orange}{D^2+DP_T}}{2\eta}+\frac{\eta}{2}\Color{skyblue}{\sumtT\norm{\grad\ell_t(w_t)}^2}}
+  \)
+</p></li>
+<li class="fragment appear"><p>
+Choosing \(\eta^*=\sqrt{\frac{\orange{D^2+DP_T}}{\skyblue{\sumtT\norm{\grad\ell_t(w_t)}^2}}}\) guarantees (optimal) dynamic regret:
+</p>
+
+<p>
+\(
+  \qquad\qquad R_T^{\eta^*}(\orange{\cmp_1,\ldots,\cmp_T})\le O\brac{\sqrt{\Color{orange}{(D^2+DP_T)}\skyblue{\sumtT\norm{\grad\ell_t(w_t)}^2}}}
+  \)
+</p></li>
+<li class="fragment appear">Run (projected) gradient descent with many different step-sizes in parallel,
+combine them using an experts algorithm (Zhang <i>et al.</i>, 2018)
+<ul>
+<li>using \(\Log{T}\) experts, one can guarantee the optimal
+bound up to log terms</li>
+
+</ul></li>
+
+</ul>
+
+</section>
+</section>
+<section>
+<section id="slide-orgc61b755">
+<h2 id="orgc61b755">Trickier: <i>Unbounded</i> domains</h2>
+<ul>
+<li class="fragment appear">in an <span class="underline">unbounded domain</span> gradient descent <span class="underline">cannot</span> guarantee \(R_T\le \tilde O(\sqrt{\skyblue{T}\orange{P_T}})\)
+<ul>
+<li><b>(Theorem 3)</b> In fact, we show  that &ldquo;FTRL-like&rdquo; algorithms cannot guarantee \(\tilde O\left(\sqrt{\skyblue{T}\orange{P_T}}\right)\) dynamic regret</li>
+
+</ul></li>
+<li class="fragment appear">If you are very clever, it is possible to fix this issue considering a larger pool  of \(O(T\Log{T})\) experts (and a smarter meta-algorithm)</li>
+
+</ul>
+<ul>
+<li class="fragment appear"><i>i.e.</i> run <i>projected</i> gradient descent with many different step-sizes <i>and</i> &ldquo;every reasonable domain size&rdquo;</li>
+<li class="fragment appear">Luo <i>et al.</i> 2022: Corralling a Larger Band of Bandits: A Case Study on \(\Color{gold}{\text{Switching Regret}}\) for Linear Bandits
+<ul>
+<li>\(\color{gold}{\text{Also here at COLT!}}\)</li>
+
+</ul></li>
+
+</ul>
+
+
+</section>
+</section>
+<section>
+<section id="slide-org8abae28">
+<h2 id="org8abae28">Our Approach</h2>
+<ul>
+<li class="fragment appear"><p>
+We instead approach the problem from a <span class="underline">mirror descent-based</span> perspective
+</p>
+<div>
+\begin{align*}
+  w_\tpp=\argmin_w \inner{\grad\ell_t(w_t),w}+\Color{plum}{\phi_t(w)}+D_{\psi_t}(w|wt)
+\end{align*}
+
+</div>
+<ul>
+<li class="fragment appear">Key: additional \(\color{plum}{\textit{composite objective }\phi_t(w)}\), carefully chosen to
+ensure stability</li>
+
+</ul></li>
+<li class="fragment appear"><p>
+<b>(Proposition 1)</b> We design an algorithm which guarantees for any \(\eta\)
+</p>
+<div>
+\begin{align*}
+  R_T^\eta(\orange{\cmp_1,\ldots,\cmp_T})\le\tilde{O}\brac{\frac{\Color{orange}{\max_t\norm{\cmp_t}+P_T}}{\eta}+\eta\skyblue{\sumtT\norm{\grad\ell_t(w_t)}^2}\orange{\norm{\cmp_t}}}
+\end{align*}
+
+</div></li>
+<li class="fragment appear"><p>
+<b>(Theorem 4)</b> &ldquo;combining&rdquo; many such algorithms for a set reasonable of \(\eta\)&rsquo;s guarantees
+</p>
+<div>
+\begin{align*}
+R_T(\orange{\cmp_1,\ldots,\cmp_T})&\le \tilde O\brac{\sqrt{\brac{\orange{\max_t\norm{\cmp_t}+P_T}}\skyblue{\sumtT\norm{\grad\ell_t(w_t)}^2}\orange{\norm{\cmp_t}}}}
+\end{align*}
+
+</div>
+
+<ul>
+<li class="fragment appear">prior works (bounded domain):
+\(
+   R_T(\orange{\cmp_1,\ldots,\cmp_T})\le \tilde O\brac{\sqrt{\brac{\orange{D^2+DP_T}}\skyblue{\sumtT\norm{\grad\ell_t(w_t)}^2}}}
+   \)
+<ul>
+<li>unexpected improvement: improved adaptivity to the individual \(\orange{\norm{\cmp_t}}\)!</li>
+
+</ul></li>
+
+</ul></li>
+
+</ul>
+
+</section>
+</section>
+<section>
+<section id="slide-org5fd56a3">
+<h2 id="org5fd56a3">Our Approach: Proof Sketch</h2>
+<ul>
+<li>\(
+    R_T^\eta(\orange{\cmp_1,\ldots,\cmp_T})\le\tilde{O}\brac{\frac{\Color{orange}{\max_t\norm{\cmp_t}+P_T}}{\eta}+\eta\skyblue{\sumtT\norm{\grad\ell_t(w_t)}^2}\orange{\norm{\cmp_t}}}\)
+<ul>
+<li class="fragment appear">Notice! \(R_T^\eta(\orange{0,\ldots,0})\le O(1)\) (constant)!
+<ul>
+<li class="fragment appear">Run algorithm for many \(\eta\in\cS\) in parallel and play \(\plum{w_t=\sum_{\eta}\wt^\eta}\).</li>
+<li class="fragment appear"><p>
+Then for any \(\widetilde\eta\in\cS\):
+</p>
+<div>
+\begin{align*}
+    R_T(\orange{\cmp_1,\ldots\cmp_T})
+    &\overset{\text{(convexity)}}{\le}
+        \sumtT\inner{\grad\ell_t(w_t), \plum{w_t}-\orange{\cmp_t}}
+        \le
+        \sumtT\inner{\grad\ell_t(w_t), \plum{\sum_\eta w_t^\eta}-\orange{\cmp_t}}\\
+\end{align*}
+
+</div></li>
+
+</ul></li>
+
+</ul></li>
+
+</ul>
+<img src="blank.svg", width=1600, height=500,align=left>
+
+</section>
+</section>
+<section>
+<section id="slide-org2393acd">
+<h2 id="org2393acd">Our Approach: Proof Sketch</h2>
+<ul>
+<li>\(
+    R_T^\eta(\orange{\cmp_1,\ldots,\cmp_T})\le\tilde{O}\brac{\frac{\Color{orange}{\max_t\norm{\cmp_t}+P_T}}{\eta}+\eta\skyblue{\sumtT\norm{\grad\ell_t(w_t)}^2}\orange{\norm{\cmp_t}}}\)
+<ul>
+<li>Notice! \(R_T^\eta(\orange{0,\ldots,0})\le O(1)\) (constant)!
+<ul>
+<li>Run algorithm for many \(\eta\in\cS\) in parallel and play \(\plum{w_t=\sum_{\eta}\wt^\eta}\).</li>
+<li><p>
+Then for any \(\widetilde\eta\in\cS\):
+</p>
+<div>
+\begin{align*}
+    R_T(\orange{\cmp_1,\ldots\cmp_T})
+    &\overset{\text{(convexity)}}{\le}
+        \sumtT\inner{\grad\ell_t(w_t), \plum{w_t}-\orange{\cmp_t}}
+        \le
+        \sumtT\inner{\grad\ell_t(w_t), \plum{\sum_\eta w_t^\eta}-\orange{\cmp_t}}\\
+    &=
+        \underbrace{\sumtT\inner{\grad\ell_t(w_t), \plum{w_t^{\widetilde\eta}}-\orange{\cmp_t}}}_{R_T^{\widetilde\eta}(\orange{\cmp_1,\ldots\cmp_T})}+\sum_{\eta\ne\widetilde\eta}\underbrace{\sumtT\inner{\grad\ell_t(w_t),\plum{\wt^\eta}-\orange{\zeros}}}_{R_T^\eta(\orange{\zeros,\ldots,\zeros})\le O(1)}
+\end{align*}
+
+</div></li>
+
+</ul></li>
+
+</ul></li>
+
+</ul>
+<img src="blank.svg", width=1200, height=500,align=right>
+
+</section>
+</section>
+<section>
+<section id="slide-orgd5190ce">
+<h2 id="orgd5190ce">Our Approach: Proof Sketch</h2>
+<ul>
+<li>\(
+    R_T^\eta(\orange{\cmp_1,\ldots,\cmp_T})\le\tilde{O}\brac{\frac{\Color{orange}{\max_t\norm{\cmp_t}+P_T}}{\eta}+\eta\skyblue{\sumtT\norm{\grad\ell_t(w_t)}^2}\orange{\norm{\cmp_t}}}\)
+<ul>
+<li>Notice! \(R_T^\eta(\orange{0,\ldots,0})\le O(1)\) (constant)!
+<ul>
+<li>Run algorithm for many \(\eta\in\cS\) in parallel and play \(\plum{w_t=\sum_{\eta}\wt^\eta}\).</li>
+<li><p>
+Then for any \(\widetilde\eta\in\cS\):
+</p>
+<div>
+\begin{align*}
+    R_T(\orange{\cmp_1,\ldots\cmp_T})
+    &\overset{\text{(convexity)}}{\le}
+        \sumtT\inner{\grad\ell_t(w_t), \plum{w_t}-\orange{\cmp_t}}
+        \le
+        \sumtT\inner{\grad\ell_t(w_t), \plum{\sum_\eta w_t^\eta}-\orange{\cmp_t}}\\
+    &=
+        \underbrace{\sumtT\inner{\grad\ell_t(w_t), \plum{w_t^{\widetilde\eta}}-\orange{\cmp_t}}}_{R_T^{\widetilde\eta}(\orange{\cmp_1,\ldots\cmp_T})}+\sum_{\eta\ne\widetilde\eta}\underbrace{\sumtT\inner{\grad\ell_t(w_t),\plum{\wt^\eta}-\orange{\zeros}}}_{R_T^\eta(\orange{\zeros,\ldots,\zeros})\le O(1)}\\
+    &=
+        R_T^{\widetilde\eta}(\orange{\cmp_1,\ldots,\orange{\cmp_t}})+|\cS|\cdot O(1)
+\end{align*}
+
+</div></li>
+
+</ul></li>
+
+</ul></li>
+
+</ul>
+<img src="blank.svg", width=1200, height=500,align=right>
+
+</section>
+</section>
+<section>
+<section id="slide-org5ba55ec">
+<h2 id="org5ba55ec">Our Approach: Proof Sketch</h2>
+<ul>
+<li>\(
+    R_T^\eta(\orange{\cmp_1,\ldots,\cmp_T})\le\tilde{O}\brac{\frac{\Color{orange}{\max_t\norm{\cmp_t}+P_T}}{\eta}+\eta\skyblue{\sumtT\norm{\grad\ell_t(w_t)}^2}\orange{\norm{\cmp_t}}}\)
+<ul>
+<li>Notice! \(R_T^\eta(\orange{0,\ldots,0})\le O(1)\) (constant)!
+<ul>
+<li>Run algorithm for many \(\eta\in\cS\) in parallel and play \(\plum{w_t=\sum_{\eta}\wt^\eta}\).</li>
+<li><p>
+Then for any \(\widetilde\eta\in\cS\):
+</p>
+<div>
+\begin{align*}
+    R_T(\orange{\cmp_1,\ldots\cmp_T})
+    &\overset{\text{(convexity)}}{\le}
+        \sumtT\inner{\grad\ell_t(w_t), \plum{w_t}-\orange{\cmp_t}}
+        \le
+        \sumtT\inner{\grad\ell_t(w_t), \plum{\sum_\eta w_t^\eta}-\orange{\cmp_t}}\\
+    &=
+        \underbrace{\sumtT\inner{\grad\ell_t(w_t), \plum{w_t^{\widetilde\eta}}-\orange{\cmp_t}}}_{R_T^{\widetilde\eta}(\orange{\cmp_1,\ldots\cmp_T})}+\sum_{\eta\ne\widetilde\eta}\underbrace{\sumtT\inner{\grad\ell_t(w_t),\plum{\wt^\eta}-\orange{\zeros}}}_{R_T^\eta(\orange{\zeros,\ldots,\zeros})\le O(1)}\\
+    &=
+        R_T^{\widetilde\eta}(\orange{\cmp_1,\ldots,\orange{\cmp_t}})+|\cS|\cdot O(1)
+\end{align*}
+
+</div>
+<ul>
+<li>This holds for <b>any</b> \(\widetilde\eta\in \cS\)! \(\therefore\) Just need to ensure:
+<ul>
+<li>there is <i>some</i> near-optimal \(\widetilde\eta\in\cS\)</li>
+<li>\(|\cS|\) &ldquo;small enough&rdquo;</li>
+
+</ul></li>
+
+</ul></li>
+
+</ul></li>
+
+</ul></li>
+
+</ul>
+<img src="blank.svg", width=1200, height=500,align=right>
+
+
+
+</section>
+</section>
+<section>
+<section id="slide-orgdcdf2b8">
+<h3 id="orgdcdf2b8">Our Approach: Bonus Improvements!</h3>
+<ul>
+<li class="fragment appear">Parameter-free \(\Color{lightgreen}{\mathit{implicit}}\) updates: \(w_\tpp=\argmin_w \Color{lightgreen}{\ell_t(w)}+\phi_t(w)+D_{\psi_t}(w|w_t)\)
+<ul>
+<li class="fragment appear"><p>
+Enables us to design an algorithm which adapts to \(\Color{lightgreen}{\textrm{gradient variability}}\) in unbounded domains:
+</p>
+<div>
+\begin{align*}
+  R_T(\orange{\cmp})\le \tilde O\brac{\orange{\norm{\cmp}}\sqrt{\sumtT\Color{lightgreen}{\norm{\grad\ell_t(w_t)-\grad\ell_\tmm(w_t)}^2}}}
+\end{align*}
+
+</div></li>
+
+</ul></li>
+<li class="fragment appear">Parameter-free + Scale-free algorithm <i>without</i> restart strategies
+<ul>
+<li class="fragment appear">Current state-of-the-art: FreeGrad (Mhammedi 2020)</li>
+
+</ul></li>
+
+</ul>
+
+</section>
+</section>
+<section>
+<section id="slide-orgece394f">
+<h2 id="orgece394f">References</h2>
+<ul>
+<li>Haipeng Luo, Mengxiao Zhang, Peng Zhao, Zhi-Hua Zhou. Corralling a Larger Band of Bandits: A Case Study on Switching Regret for Linear Bandits. In <i>Conference on Learning Theory (COLT)</i>, 2022.</li>
+<li>Lijun Zhang, Shiyin Lu, and Zhi-Hua Zhou. Adaptive online learning in dynamic environments. In <i>Neural Information Processing Systems</i>, 2018.</li>
+<li>Zakaria Mhammedi, Wouter M. Koolen Proceedings of Thirty Third Conference on Learning Theory, PMLR 125:2858-2887, 2020.</li>
+
+</ul>
+</section>
+</section>
+</div>
+</div>
+<script src="file:////home/andrew/reveal.js/dist/reveal.js"></script>
+<script src="file:////home/andrew/reveal.js/plugin/markdown/markdown.js"></script>
+<script src="file:////home/andrew/reveal.js/plugin/notes/notes.js"></script>
+<script src="file:////home/andrew/reveal.js/plugin/search/search.js"></script>
+<script src="file:////home/andrew/reveal.js/plugin/zoom/zoom.js"></script>
+<script>
+// Full list of configuration options available here:
+// https://github.com/hakimel/reveal.js#configuration
+Reveal.initialize({
+
+controls: true,
+progress: true,
+history: true,
+center: true,
+slideNumber: 'c',
+rollingLinks: true,
+keyboard: true,
+mouseWheel: false,
+fragmentInURL: false,
+hashOneBasedIndex: false,
+pdfSeparateFragments: true,
+overview: true,
+width: 1800,
+height: 1200,
+margin: 0.10,
+minScale: 0.50,
+maxScale: 2.50,
+
+transition: 'none',
+transitionSpeed: 'default',
+
+// Plugins with reveal.js 4.x
+plugins: [ RevealMarkdown, RevealNotes, RevealSearch, RevealZoom ],
+
+// Optional libraries used to extend reveal.js
+dependencies: [
+]
+
+});
+</script>
+</body>
+</html>
